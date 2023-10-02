@@ -19,40 +19,46 @@ The env. parameters are sent via HTTP POST request to a server which will archiv
 
 You should use the [PlatformIO](https://platformio.org). 
 
-## Connection via serial
+In the Platformio project tasks, first the filesystem should be uploaded by clicking `Platform > Upload Filesystem Image`. 
 
-Use the tool `serial_monitor.py` to monitor the serial connection and to send commands to the controller. pyserial must be installed. Run it using 
+Then the board should be flashed by clicking  `General > Upload and Monitor`.
 
-```
-python serial_monitor.py -p "port"
-````
+![](docs/tasks_platformio.png)
 
-you should change the "port" to the one on your PC. To send commands via serial, simply type the command and hit enter to send it.
+Platformio should be able to identify automatically the board port.
 
-| Command          | Description                                       |
-| ---------------- | ------------------------------------------------- |
-| config_network   | Redefine the network credentials (only if not connecting to eduroam)     |
-| config_url       | Save the urls for sending the data                |
-| config_boardname | Configure the board name                          |
-| config_delay     | Configure the delay time between data sending     |
-| erase_flash      | Erase all saved configurations                    |
+## Configuring the board
 
-## First power up
+### First boot
 
-The first time the board is powered, it will ask the network credentials to connect to WIFI. Use the `serial_monitor.py` tool to check the messages from serial. When asked, tap the ssid and the password.
+When first booting, a WIFI Access Point will be created with the name `rpc_meteo_xxxxx` (xxxxx will be a id number of the chip), which the user has to connect to configure the wifi credentials.
 
-After that, it will try to connect to the network. If you have any problems check the network credentials.
+After connecting, go to the web page `rpc_meteo_xxxxx.local` (xxxxx will be the same as the access point) and enter the credentials. The board will restart and connect to the set wifi. If it does not succeed, it will open the access point again, check your credentials details.
+
+![](docs/wifi_page.png)
+
+If the board successfully connects to the wifi, the webpage changes to a configuration page where the other parameters of the board can be configured.
+
+![](docs/config_page.png)
+
+Station name -> Name that will be sent in the POST request to the servers.
+Delay time -> Number of seconds between the environmental data sending.
+URLs -> List of URLs that to which the data will be sent. Put one URL per line.
 
 ## HTTP POST
 
 The POST body is a JSON with the following body:
 
 ```
-{"name": str("board_name"), "temp": float(T in °C), "pres": float(P in mbar), "humi": float(RH in %)}
+{"name": str("station_name"), "temp": float(T in °C), "pres": float(P in mbar), "humi": float(RH in %)}
 ```
 
-it will be sent regularly within a delay time (default=30s), to the registered URLs (up to 5), if no URL is registered, it will only fetch the sensor data and print to serial, but no POST request will be sent. Register the URLs using the command `config_url`
+it will be sent regularly within a delay time (default=30s), to the registered URLs, if no URL is registered, it will only fetch the sensor data which will be available in the configuration portal, but no POST request will be sent.
 
 ## Problems
 
-Try to erase the esp32 flash and reflashing the firmware. Do all the configuration steps and try again.
+If you have any problems, try checking the serial debug data of the esp32, to do that, either use the script `serial_monitor.py` or the `General > Monitor` Task in Platformio.
+
+If you cannot access the board via `rpc_meteo_xxxxx.local`, you can access it directly via the ip address. It will be printed in the serial when it successfully connects or creates the access point.
+
+It is also worth trying to erase the esp32 flash and reflashing the firmware. Do all the configuration steps and try again.
