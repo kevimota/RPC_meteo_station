@@ -1,135 +1,264 @@
+/*********
+  Rui Santos
+  Complete instructions at https://RandomNerdTutorials.com/esp32-wi-fi-manager-asyncwebserver/
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+*********/
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <ESPAsyncWebServer.h>
+#include <AsyncTCP.h>
+#include <ESPmDNS.h>
 
-#include <nvs_flash.h>
-#include <Preferences.h>
-Preferences preferences;
+#include "FS.h"
+#include "LITTLEFS.h"
+
+#ifndef CONFIG_LITTLEFS_FOR_IDF_3_2
+#include <time.h>
+#endif
+
+#define FORMAT_LITTLEFS_IF_FAILED true
 
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 Adafruit_BME280 bme;
 
+#include "utils.h"
+
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80);
+
+// Variables to save values from HTML form
+String ssid;
+String pass;
+String delay_time;
+String station_name;
+String urls;
+
+float temp;
+float pres;
+float humi;
+
+// File paths to save input values permanently
+const char *ssidPath = "/ssid.txt";
+const char *passPath = "/pass.txt";
+const char *delay_timePath = "/delay_time.txt";
+const char *station_namePath = "/station_name.txt";
+const char *urlsPath = "/urls.txt";
+
+// Timer variables
+unsigned long previousMillis = 0;
+const long interval = 10000; // interval to wait for Wi-Fi connection (milliseconds)
+
+String ap_name = "rpc_meteo_" + String(ESP.getEfuseMac(), HEX);
+
 #include <esp_task_wdt.h>
 #define WDT_TIMEOUT 120
 
 #define LED_BUILDTIN 2
 
-// Configuration values of the board
-String ssid = "";
-String password = "";
-unsigned int delay_time;
-String board_name = "";
-String url[10] = {"", "", "", "", "", "", "", "", "", ""};
-
-// for checking the time
-unsigned long last_time;
-
-String wait_serial()
+// Initialize Filesystem
+void initLittleFS()
 {
-  while (Serial.available() < 1)
+  if (!LITTLEFS.begin(FORMAT_LITTLEFS_IF_FAILED))
   {
-    delay(500);
+    Serial.println("LITTLEFS Mount Failed");
+    return;
   }
-  return Serial.readStringUntil('\n');
+  Serial.println("LittleFS mounted successfully");
 }
 
-void def_credentials()
-{
-  // save the credentials to flash memory
-  Serial.println("Setup for the credentials.");
-  Serial.println("Enter the ssid: ");
-  ssid = wait_serial();
+void load_info() {
+  ssid = readFile(LITTLEFS, ssidPath);
+  pass = readFile(LITTLEFS, passPath);
+  station_name = readFile(LITTLEFS, station_namePath);
+  delay_time = readFile(LITTLEFS, delay_timePath);
+  urls = readFile(LITTLEFS, urlsPath);
 
-  Serial.println("Enter the password: ");
-  password = wait_serial();
+  if (delay_time.toInt() == 0) delay_time = "30";
+  if (station_name == "") station_name = WiFi.macAddress();
 
-  preferences.begin("config", false);
-  preferences.putString("ssid", ssid);
-  preferences.putString("password", password);
-
-  Serial.println("Network credentials saved!");
-
-  preferences.end();
-
-  ESP.restart();
+  Serial.println("SSID: " + ssid);
+  Serial.println("Password: " + pass);
+  Serial.println("Station Name: " + station_name);
+  Serial.println("Delay time: " + delay_time);
+  Serial.println("URLs: " + urls);
 }
 
-void network_connect()
+// Initialize WiFi
+bool initWiFi()
 {
-  // connect to the registered network
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  if (ssid == "")
+  {
+    Serial.println("Undefined SSID or IP address.");
+    return false;
+  }
 
-  WiFi.begin(ssid.c_str(), password.c_str());
-  unsigned long last_time = millis();
+  WiFi.mode(WIFI_STA);
+
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  Serial.println("Connecting to WiFi...");
+
+  unsigned long currentMillis = millis();
+  previousMillis = currentMillis;
 
   while (WiFi.status() != WL_CONNECTED)
   {
-    delay(500);
-    Serial.print(".");
-    if ((millis() - last_time) > 50000)
+    currentMillis = millis();
+    if (currentMillis - previousMillis >= interval)
     {
-      // try to connect 50 s timeout
-      Serial.println("");
-      Serial.println("Timeout, configure the password again.");
-      def_credentials();
+      Serial.println("Failed to connect.");
+      return false;
     }
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+
+  if(!MDNS.begin(ap_name)) {
+    Serial.println("Error starting mDNS");
+  }
+  else {
+    Serial.println("Successfully started mDNS: " + ap_name + ".local");
+  }
+
+  return true;
+}
+
+String processor(const String &var)
+{
+  if (var == "STATION_NAME") {
+    return station_name;
+  }
+  if (var == "DELAY_TIME") {
+    return delay_time;
+  }
+  if (var == "URLS") {
+    return urls;
+  }
+  if (var == "PRES") {
+    return String(pres);
+  }
+  if (var == "TEMP") {
+    return String(temp);
+  }
+  if (var == "HUMI") {
+    return String(humi);
+  }
+  return String();
+}
+
+void callback_configure_wifi(AsyncWebServerRequest *request) {
+  int params = request->params();
+  for(int i=0;i<params;i++){
+    AsyncWebParameter* p = request->getParam(i);
+    if(p->isPost()){
+      // HTTP POST ssid value
+      if (p->name() == "ssid") {
+        ssid = p->value().c_str();
+        Serial.print("SSID set to: ");
+        Serial.println(ssid);
+        // Write file to save value
+        writeFile(LITTLEFS, ssidPath, ssid.c_str());
+      }
+      // HTTP POST pass value
+      if (p->name() == "pass") {
+        pass = p->value().c_str();
+        Serial.print("Password set to: ");
+        Serial.println(pass);
+        // Write file to save value
+        writeFile(LITTLEFS, passPath, pass.c_str());
+      }
+    }
+  }
+  request->send(200, "text/plain", "Done. ESP will restart");
+  delay(3000);
+  ESP.restart();
+}
+
+void callback_configure_station(AsyncWebServerRequest *request) {
+  int params = request->params();
+  for(int i=0;i<params;i++){
+    AsyncWebParameter* p = request->getParam(i);
+    if(p->isPost()){
+      if (p->name() == "station_name") {
+        station_name = p->value().c_str();
+        Serial.print("Station Name set to: ");
+        Serial.println(station_name);
+        // Write file to save value
+        writeFile(LITTLEFS, station_namePath, station_name.c_str());
+      }
+      if (p->name() == "delay_time") {
+        delay_time = p->value().c_str();
+        Serial.print("Station Name set to: ");
+        Serial.println(delay_time);
+        // Write file to save value
+        writeFile(LITTLEFS, delay_timePath, delay_time.c_str());
+      }
+      if (p->name() == "urls") {
+        urls = p->value().c_str();
+        Serial.print("Station Name set to: ");
+        Serial.println(urls);
+        // Write file to save value
+        writeFile(LITTLEFS, urlsPath, urls.c_str());
+      }
+      
+    }
+  }
+  load_info();
+  request->send(LITTLEFS, "/config.html", "text/html", false, processor);
+}
+
+void callback_delete_wifi_info(AsyncWebServerRequest *request) {
+  deleteFile(LITTLEFS, ssidPath);
+  deleteFile(LITTLEFS, passPath);
+  request->send(200, "text/plain", "Done. ESP will restart");
+  delay(3000);
+  ESP.restart();
+}
+
+void set_wifi_configuration() {
+  // Connect to Wi-Fi network with SSID and password
+    Serial.println("Setting AP (Access Point)");
+    // NULL sets an open Access Point
+
+    WiFi.softAP(ap_name.c_str(), NULL);
+
+    IPAddress IP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(IP);
+
+    if(!MDNS.begin(ap_name)) {
+      Serial.println("Error starting mDNS");
+    }
+    // Web Server Root URL
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(LITTLEFS, "/wifimanager.html", "text/html"); });
+
+    server.serveStatic("/", LITTLEFS, "/");
+
+    server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+      callback_configure_wifi(request);
+              });
+    server.begin();
 }
 
 void setup()
 {
+  // Serial port for debugging purposes
   Serial.begin(115200);
-  while (!Serial)
-  {
-    delay(10);
-  }
-  Serial.println("Starting the setup:");
+
+  initLittleFS();
+  
+  // Load values saved in SPIFFS
+  load_info();
 
   pinMode(LED_BUILDTIN, OUTPUT);
 
-  // get configuration data from flash memory
-  preferences.begin("config", false);
-  ssid = preferences.getString("ssid", "");
-  password = preferences.getString("password", "");
-  delay_time = preferences.getUInt("delay_time", 0);
-  board_name = preferences.getString("board_name", "meteo_station");
-  url[0] = preferences.getString("url0", "");
-  url[1] = preferences.getString("url1", "");
-  url[2] = preferences.getString("url2", "");
-  url[3] = preferences.getString("url3", "");
-  url[4] = preferences.getString("url4", "");
-  url[5] = preferences.getString("url5", "");
-  url[6] = preferences.getString("url6", "");
-  url[7] = preferences.getString("url7", "");
-  url[8] = preferences.getString("url8", "");
-  url[9] = preferences.getString("url9", "");
-  preferences.end();
-
-  if (delay_time < 1000)
-  {
-    Serial.println("Delay time less than 1s, setting the default: 30 s");
-    delay_time = 30000;
-  }
-
-  if (ssid == "")
-  {
-    Serial.println("No credentials saved!");
-    def_credentials();
-  }
-
-  network_connect(); // connect to network
-
-  // configure and check sensor
-  bool status;
-  status = bme.begin(0x76);
+  bool status = bme.begin(0x76);
   if (status)
   {
     Serial.println("BME280 sensor found!");
@@ -144,6 +273,31 @@ void setup()
     ESP.restart();
   }
 
+  temp = bme.readTemperature();
+  pres = bme.readPressure() / 100.0F;
+  humi = bme.readHumidity();
+
+  if (initWiFi())
+  {
+    // Route for root / web page
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(LITTLEFS, "/config.html", "text/html", false, processor); });
+    server.serveStatic("/", LITTLEFS, "/");
+    server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+                callback_configure_station(request);
+              });
+    server.begin();
+    server.on("/delete", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+                callback_delete_wifi_info(request);
+              });
+    server.begin();
+  }
+  else
+  {
+    set_wifi_configuration();
+  }
   Serial.println("Setup finished!");
   esp_task_wdt_init(WDT_TIMEOUT, true);
   esp_task_wdt_add(NULL);
@@ -156,9 +310,9 @@ void send_data()
   esp_task_wdt_reset();
 
   // save the sensor values.
-  float temp = bme.readTemperature();
-  float pres = bme.readPressure() / 100.0F;
-  float humi = bme.readHumidity();
+  temp = bme.readTemperature();
+  pres = bme.readPressure() / 100.0F;
+  humi = bme.readHumidity();
 
   if (temp < -100.0)
   {
@@ -171,7 +325,7 @@ void send_data()
   }
 
   // format json string
-  String json = "{\"name\": \"" + board_name + "\", \"temp\": " + (String)temp + ", \"pres\": " + (String)pres + ", \"humi\": " + (String)humi + "}";
+  String json = "{\"name\": \"" + station_name + "\", \"temp\": " + (String)temp + ", \"pres\": " + (String)pres + ", \"humi\": " + (String)humi + "}";
 
   Serial.println(json);
 
@@ -181,177 +335,40 @@ void send_data()
   if (WiFi.status() == WL_CONNECTED)
   {
     HTTPClient http;
-    for (int i = 0; i < 5; ++i)
-    {
-      if (url[i] == "")
-      {
-        continue;
+    //bool finished = false;
+    int i = 0;
+
+    while (true) {
+      String url = getValue(urls, '\n', i);
+      if (url == "") {
+        break;
       }
       Serial.print("Sending data to: ");
-      Serial.println(url[i]);
+      Serial.println(url);
       int http_response;
-      http.begin(url[i].c_str());
+      http.begin(url.c_str());
       http_response = http.POST(json.c_str());
       http.end();
       Serial.print("HTTP Response code: ");
       Serial.println(http_response);
+
+      i+=1;
     }
+
   }
   else
   {
     // connect if not connected
-    network_connect();
+    initWiFi();
   }
   digitalWrite(LED_BUILDTIN, LOW);
 }
 
-void flash_url(String key, int number)
-{
-  // save urls in flash
-  Serial.println("Enter the new url:");
-  String new_url = wait_serial();
-  preferences.putString(key.c_str(), new_url.c_str());
-  url[number] = new_url;
-  Serial.println("Saved!");
-}
-
-void save_urls()
-{
-  // check and save urls for http post
-  Serial.println("Currently saved urls are: ");
-  for (int i = 0; i < 5; ++i)
-  {
-    Serial.print(i + 1);
-    Serial.print("- ");
-    if (url[i] == "")
-      Serial.println("Not set!");
-    else
-      Serial.println(url[i]);
-  }
-  bool looping = false;
-  Serial.println("Do you want to change the URLs? [y/n]");
-  if (wait_serial() == "y")
-    looping = true;
-  preferences.begin("config", false);
-  while (looping)
-  {
-    Serial.println("Choose the URL to change: [0-9]");
-    int number = wait_serial().toInt();
-    switch (number)
-    {
-    case 0:
-      flash_url("url0", 0);
-      break;
-    case 1:
-      flash_url("url1", 1);
-      break;
-    case 2:
-      flash_url("url2", 2);
-      break;
-    case 3:
-      flash_url("url3", 3);
-      break;
-    case 4:
-      flash_url("url4", 4);
-      break;
-    case 5:
-      flash_url("url0", 5);
-      break;
-    case 6:
-      flash_url("url1", 6);
-      break;
-    case 7:
-      flash_url("url2", 7);
-      break;
-    case 8:
-      flash_url("url3", 8);
-      break;
-    case 9:
-      flash_url("url4", 9);
-      break;
-
-    default:
-      Serial.print("URL ");
-      Serial.print(number);
-      Serial.println(" does not exist!");
-    }
-    Serial.println("Do you want to change the URLs? [y/n]");
-    if (wait_serial() == "n")
-      looping = false;
-  }
-  preferences.end();
-}
-
-void set_boardname()
-{
-  // Set the board name
-  Serial.print("Current board name is: ");
-  Serial.println(board_name);
-  Serial.println("Do you want to change the board name [y/n]?");
-  if (wait_serial() == "y")
-  {
-    Serial.println("Set new board name: ");
-    board_name = wait_serial();
-  }
-  preferences.begin("config", false);
-  preferences.putString("board_name", board_name);
-  preferences.end();
-  Serial.println("Saved!");
-}
-
-void set_delay()
-{
-  // Set delay time in seconds, it is converted to millisecond.
-  Serial.print("Current delay time is: ");
-  Serial.print(delay_time / 1000.);
-  Serial.println(" s");
-  Serial.println("Do you want to change the delay time [y/n]?");
-  if (wait_serial() == "y")
-  {
-    Serial.println("Set new delay time: ");
-    delay_time = wait_serial().toInt() * 1000;
-  }
-
-  if (delay_time < 1000)
-  {
-    Serial.println("Delay time less than 1s, setting the default: 30 s");
-    delay_time = 30000;
-  }
-  preferences.begin("config", false);
-  preferences.putUInt("delay_time", delay_time);
-  preferences.end();
-  Serial.println("Saved!");
-}
-
-void erase_flash()
-{
-  nvs_flash_erase();
-  nvs_flash_init();
-  ESP.restart();
-}
-
 void loop()
 {
-  // send data after delay_time passed
-  if ((millis() - last_time) > delay_time)
+  if ((millis() - previousMillis) > delay_time.toInt()*1000)
   {
-    last_time = millis();
+    previousMillis = millis();
     send_data();
-  }
-
-  // configuration options
-  if (Serial.available() > 0)
-  {
-    String read_data = Serial.readStringUntil('\n');
-    if (read_data == "config_network")
-      def_credentials();
-    else if (read_data == "config_url")
-      save_urls();
-    else if (read_data == "config_boardname")
-      set_boardname();
-    else if (read_data == "config_delay")
-      set_delay();
-    else if (read_data == "erase_flash")
-      erase_flash();
   }
 }
