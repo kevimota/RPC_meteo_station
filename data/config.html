@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>RPC Meteo Station</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+  <div class="topnav">
+    <h1>Meteo Station Configuration</h1>
+  </div>
+  <div class="content">
+    <div class="card-grid">
+      <div class="card">
+        <form action="/" method="POST">
+          <div>
+            <label for="ssid">Station Name</label>
+            <input type="text" id="station_name" name="station_name" value="%STATION_NAME%"><br>
+            <label for="pass">Delay Time</label>
+            <input type="number" id="delay_time" name="delay_time" value="%DELAY_TIME%"><br>
+            <div style="display: flex; flex-direction: column; align-content: center; align-items: center;">
+              <label for="urls">URLs</label>
+              <textarea id="urls" name="urls" rows="10" cols="50">%URLS%</textarea>
+              <br>
+            </div>
+            <input type ="submit" value ="Submit">
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <p>Last Measurements:</p>
+        <p>Pressure = %PRES% mbar</p>
+        <p>Temperature = %TEMP% &#176;C</p>
+        <p>RH = %HUMI% %</p>
+      </div>
+      <div class="card">
+        <form action="/delete" method="POST">
+          <p>Delete SSID and Password Information</p>
+          <input type ="submit" value ="Delete!" class="delete">
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
