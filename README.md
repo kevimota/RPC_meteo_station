@@ -59,6 +59,8 @@ it will be sent regularly within a delay time (default=30s), to the registered U
 
 If you have any problems, try checking the serial debug data of the esp32, to do that, either use the script `serial_monitor.py` or the `General > Monitor` Task in Platformio.
 
+If the sensor is not found, check the wiring or the I2C address (it is configure in the bme.begin(address) function), it should be either 0x76 or 0x77 and depends on how the sensor is powered ()
+
 If you cannot access the board via `rpc_meteo_xxxxx.local`, you can access it directly via the ip address. It will be printed in the serial when it successfully connects or creates the access point.
 
 It is also worth trying to erase the esp32 flash and reflashing the firmware. Do all the configuration steps and try again.
