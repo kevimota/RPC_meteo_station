@@ -37,6 +37,7 @@ String pass;
 String delay_time;
 String station_name;
 String urls;
+String msg;
 
 float temp;
 float pres;
@@ -53,7 +54,7 @@ const char *urlsPath = "/urls.txt";
 unsigned long previousMillis = 0;
 const long interval = 10000; // interval to wait for Wi-Fi connection (milliseconds)
 
-String ap_name = "rpc_meteo_" + String(ESP.getEfuseMac(), HEX);
+String ap_name = "rpc-meteo-" + String(ESP.getEfuseMac(), HEX);
 
 #include <esp_task_wdt.h>
 #define WDT_TIMEOUT 120
@@ -117,11 +118,12 @@ bool initWiFi()
 
   Serial.println(WiFi.localIP());
 
-  if(!MDNS.begin(ap_name)) {
+  if(!MDNS.begin(ap_name.c_str())) {
     Serial.println("Error starting mDNS");
   }
   else {
     Serial.println("Successfully started mDNS: " + ap_name + ".local");
+    MDNS.addService("http", "tcp", 80);
   }
 
   return true;
@@ -129,24 +131,13 @@ bool initWiFi()
 
 String processor(const String &var)
 {
-  if (var == "STATION_NAME") {
-    return station_name;
-  }
-  if (var == "DELAY_TIME") {
-    return delay_time;
-  }
-  if (var == "URLS") {
-    return urls;
-  }
-  if (var == "PRES") {
-    return String(pres);
-  }
-  if (var == "TEMP") {
-    return String(temp);
-  }
-  if (var == "HUMI") {
-    return String(humi);
-  }
+  if (var == "STATION_NAME") return station_name;
+  if (var == "DELAY_TIME") return delay_time;
+  if (var == "URLS") return urls;
+  if (var == "PRES") return String(pres);
+  if (var == "TEMP") return String(temp);
+  if (var == "HUMI") return String(humi);
+  if (var == "MSG") return String(msg);
   return String();
 }
 
@@ -230,8 +221,12 @@ void set_wifi_configuration() {
     Serial.print("AP IP address: ");
     Serial.println(IP);
 
-    if(!MDNS.begin(ap_name)) {
+    if(!MDNS.begin(ap_name.c_str())) {
       Serial.println("Error starting mDNS");
+    }
+    else {
+      Serial.println("Successfully started mDNS: " + ap_name + ".local");
+      MDNS.addService("http", "tcp", 80);
     }
     // Web Server Root URL
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -314,10 +309,11 @@ void send_data()
   pres = bme.readPressure() / 100.0F;
   humi = bme.readHumidity();
 
-  if (temp < -100.0)
+  if (pres < 0.0)
   {
     Serial.println("Problem in the sensor, check connections. Resetting in 5 s...");
     unsigned long time_now = millis();
+    msg = "Problem in the sensor, check connections. Resetting in 5 s...";
     while (millis() - time_now < 5000)
     {
     }
