@@ -29,21 +29,19 @@ Platformio should be able to identify automatically the board port.
 
 ## Configuring the board
 
-### First boot
+A WIFI Access Point will be created with the name `rpc_meteo_xxxxx` (xxxxx will be a id number of the chip), which the user has to connect to configure the wifi credentials.
 
-When first booting, a WIFI Access Point will be created with the name `rpc_meteo_xxxxx` (xxxxx will be a id number of the chip), which the user has to connect to configure the wifi credentials.
-
-After connecting, go to the web page `rpc_meteo_xxxxx.local` (xxxxx will be the same as the access point) and enter the credentials. The board will restart and connect to the set wifi. If it does not succeed, it will open the access point again, check your credentials details.
+After connecting, go to the web page `rpc_meteo_xxxxx.local` (xxxxx will be the same as the access point) and enter the credentials. If the webpage is not accessible, the user can connect directly to the default IP address of the board `192.168.1.1`. After submitting the credentials, the board will restart and connect to the set wifi. If it does not succeed, it will open the access point again, check your credentials details.
 
 ![](docs/wifi_page.png)
 
-If the board successfully connects to the wifi, the webpage changes to a configuration page where the other parameters of the board can be configured.
+the configuration page where the other parameters of the board can be configured can be found in `rpc_meteo_xxxxx.local/config`.
 
 ![](docs/config_page.png)
 
 Station name -> Name that will be sent in the POST request to the servers.
 Delay time -> Number of seconds between the environmental data sending.
-URLs -> List of URLs that to which the data will be sent. Put one URL per line.
+URLs -> List of URLs that to which the data will be sent. Write one URL per line.
 
 ## HTTP POST
 
@@ -59,8 +57,8 @@ it will be sent regularly within a delay time (default=30s), to the registered U
 
 If you have any problems, try checking the serial debug data of the esp32, to do that, either use the script `serial_monitor.py` or the `General > Monitor` Task in Platformio.
 
-If the sensor is not found, check the wiring or the I2C address (it is configure in the bme.begin(address) function), it should be either 0x76 or 0x77 and depends on how the sensor is powered ()
+If the sensor is not found, check the wiring or the I2C address (it is configure in the bme.begin(address) function), it should be either 0x76 or 0x77 and depends on how the sensor is powered.
 
-If you cannot access the board via `rpc_meteo_xxxxx.local`, you can access it directly via the ip address. It will be printed in the serial when it successfully connects or creates the access point.
+If you cannot access the board via `rpc_meteo_xxxxx.local`, you can access it directly via the ip address. It will be printed in the serial when it successfully connects or accessible in 192.168.1.1 if connected to the Access Point.
 
 It is also worth trying to erase the esp32 flash and reflashing the firmware. Do all the configuration steps and try again.

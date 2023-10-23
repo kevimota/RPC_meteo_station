@@ -1,10 +1,3 @@
-/*********
-  Rui Santos
-  Complete instructions at https://RandomNerdTutorials.com/esp32-wi-fi-manager-asyncwebserver/
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
-  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-*********/
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -30,6 +23,8 @@ Adafruit_BME280 bme;
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
+
+IPAddress apIP = IPAddress(192, 168, 1, 1);
 
 // Variables to save values from HTML form
 String ssid;
@@ -72,15 +67,18 @@ void initLittleFS()
   Serial.println("LittleFS mounted successfully");
 }
 
-void load_info() {
+void load_info()
+{
   ssid = readFile(LITTLEFS, ssidPath);
   pass = readFile(LITTLEFS, passPath);
   station_name = readFile(LITTLEFS, station_namePath);
   delay_time = readFile(LITTLEFS, delay_timePath);
   urls = readFile(LITTLEFS, urlsPath);
 
-  if (delay_time.toInt() == 0) delay_time = "30";
-  if (station_name == "") station_name = WiFi.macAddress();
+  if (delay_time.toInt() == 0)
+    delay_time = "30";
+  if (station_name == "")
+    station_name = WiFi.macAddress();
 
   Serial.println("SSID: " + ssid);
   Serial.println("Password: " + pass);
@@ -90,15 +88,13 @@ void load_info() {
 }
 
 // Initialize WiFi
-bool initWiFi()
+void initWiFi(void *param)
 {
   if (ssid == "")
   {
     Serial.println("Undefined SSID or IP address.");
-    return false;
+    vTaskDelete(NULL);
   }
-
-  WiFi.mode(WIFI_STA);
 
   WiFi.begin(ssid.c_str(), pass.c_str());
   Serial.println("Connecting to WiFi...");
@@ -112,42 +108,44 @@ bool initWiFi()
     if (currentMillis - previousMillis >= interval)
     {
       Serial.println("Failed to connect.");
-      return false;
+      vTaskDelete(NULL);
     }
   }
 
   Serial.println(WiFi.localIP());
-
-  if(!MDNS.begin(ap_name.c_str())) {
-    Serial.println("Error starting mDNS");
-  }
-  else {
-    Serial.println("Successfully started mDNS: " + ap_name + ".local");
-    MDNS.addService("http", "tcp", 80);
-  }
-
-  return true;
+  vTaskDelete(NULL);
 }
 
 String processor(const String &var)
 {
-  if (var == "STATION_NAME") return station_name;
-  if (var == "DELAY_TIME") return delay_time;
-  if (var == "URLS") return urls;
-  if (var == "PRES") return String(pres);
-  if (var == "TEMP") return String(temp);
-  if (var == "HUMI") return String(humi);
-  if (var == "MSG") return String(msg);
+  if (var == "STATION_NAME")
+    return station_name;
+  if (var == "DELAY_TIME")
+    return delay_time;
+  if (var == "URLS")
+    return urls;
+  if (var == "PRES")
+    return String(pres);
+  if (var == "TEMP")
+    return String(temp);
+  if (var == "HUMI")
+    return String(humi);
+  if (var == "MSG")
+    return String(msg);
   return String();
 }
 
-void callback_configure_wifi(AsyncWebServerRequest *request) {
+void callback_configure_wifi(AsyncWebServerRequest *request)
+{
   int params = request->params();
-  for(int i=0;i<params;i++){
-    AsyncWebParameter* p = request->getParam(i);
-    if(p->isPost()){
+  for (int i = 0; i < params; i++)
+  {
+    AsyncWebParameter *p = request->getParam(i);
+    if (p->isPost())
+    {
       // HTTP POST ssid value
-      if (p->name() == "ssid") {
+      if (p->name() == "ssid")
+      {
         ssid = p->value().c_str();
         Serial.print("SSID set to: ");
         Serial.println(ssid);
@@ -155,7 +153,8 @@ void callback_configure_wifi(AsyncWebServerRequest *request) {
         writeFile(LITTLEFS, ssidPath, ssid.c_str());
       }
       // HTTP POST pass value
-      if (p->name() == "pass") {
+      if (p->name() == "pass")
+      {
         pass = p->value().c_str();
         Serial.print("Password set to: ");
         Serial.println(pass);
@@ -169,40 +168,46 @@ void callback_configure_wifi(AsyncWebServerRequest *request) {
   ESP.restart();
 }
 
-void callback_configure_station(AsyncWebServerRequest *request) {
+void callback_configure_station(AsyncWebServerRequest *request)
+{
   int params = request->params();
-  for(int i=0;i<params;i++){
-    AsyncWebParameter* p = request->getParam(i);
-    if(p->isPost()){
-      if (p->name() == "station_name") {
+  for (int i = 0; i < params; i++)
+  {
+    AsyncWebParameter *p = request->getParam(i);
+    if (p->isPost())
+    {
+      if (p->name() == "station_name")
+      {
         station_name = p->value().c_str();
         Serial.print("Station Name set to: ");
         Serial.println(station_name);
         // Write file to save value
         writeFile(LITTLEFS, station_namePath, station_name.c_str());
       }
-      if (p->name() == "delay_time") {
+      if (p->name() == "delay_time")
+      {
         delay_time = p->value().c_str();
         Serial.print("Station Name set to: ");
         Serial.println(delay_time);
         // Write file to save value
         writeFile(LITTLEFS, delay_timePath, delay_time.c_str());
       }
-      if (p->name() == "urls") {
+      if (p->name() == "urls")
+      {
         urls = p->value().c_str();
         Serial.print("Station Name set to: ");
         Serial.println(urls);
         // Write file to save value
         writeFile(LITTLEFS, urlsPath, urls.c_str());
       }
-      
     }
   }
   load_info();
   request->send(LITTLEFS, "/config.html", "text/html", false, processor);
 }
 
-void callback_delete_wifi_info(AsyncWebServerRequest *request) {
+void callback_delete_wifi_info(AsyncWebServerRequest *request)
+{
   deleteFile(LITTLEFS, ssidPath);
   deleteFile(LITTLEFS, passPath);
   request->send(200, "text/plain", "Done. ESP will restart");
@@ -210,35 +215,18 @@ void callback_delete_wifi_info(AsyncWebServerRequest *request) {
   ESP.restart();
 }
 
-void set_wifi_configuration() {
+void ap_configuration()
+{
   // Connect to Wi-Fi network with SSID and password
-    Serial.println("Setting AP (Access Point)");
-    // NULL sets an open Access Point
+  Serial.println("Setting AP (Access Point)");
+  // NULL sets an open Access Point
 
-    WiFi.softAP(ap_name.c_str(), NULL);
+  WiFi.softAP(ap_name.c_str(), NULL);
+  WiFi.softAPConfig(apIP, apIP, IPAddress(255,255,255,0));
+  //WiFi.config(apIP, apIP, IPAddress(255, 255, 255, 0));
 
-    IPAddress IP = WiFi.softAPIP();
-    Serial.print("AP IP address: ");
-    Serial.println(IP);
-
-    if(!MDNS.begin(ap_name.c_str())) {
-      Serial.println("Error starting mDNS");
-    }
-    else {
-      Serial.println("Successfully started mDNS: " + ap_name + ".local");
-      MDNS.addService("http", "tcp", 80);
-    }
-    // Web Server Root URL
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(LITTLEFS, "/wifimanager.html", "text/html"); });
-
-    server.serveStatic("/", LITTLEFS, "/");
-
-    server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
-              {
-      callback_configure_wifi(request);
-              });
-    server.begin();
+  Serial.print("AP IP address: ");
+  Serial.println(WiFi.softAPIP());
 }
 
 void setup()
@@ -247,7 +235,7 @@ void setup()
   Serial.begin(115200);
 
   initLittleFS();
-  
+
   // Load values saved in SPIFFS
   load_info();
 
@@ -272,27 +260,42 @@ void setup()
   pres = bme.readPressure() / 100.0F;
   humi = bme.readHumidity();
 
-  if (initWiFi())
+  WiFi.mode(WIFI_AP_STA);
+  xTaskCreate(
+    initWiFi,
+    "Init WiFi",
+    4096,
+    NULL,
+    1,
+    NULL
+  );
+  ap_configuration();
+
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+          { request->send(LITTLEFS, "/wifimanager.html", "text/html"); });
+  server.serveStatic("/", LITTLEFS, "/");
+  server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
+            { callback_configure_wifi(request); });
+  server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(LITTLEFS, "/config.html", "text/html", false, processor); });
+  server.serveStatic("/config", LITTLEFS, "/config.html");
+  server.on("/config", HTTP_POST, [](AsyncWebServerRequest *request)
+            { Serial.println("Config station");
+              callback_configure_station(request); });
+  server.on("/delete", HTTP_POST, [](AsyncWebServerRequest *request)
+            { callback_delete_wifi_info(request); });
+  server.begin();
+
+  if (!MDNS.begin(ap_name.c_str()))
   {
-    // Route for root / web page
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(LITTLEFS, "/config.html", "text/html", false, processor); });
-    server.serveStatic("/", LITTLEFS, "/");
-    server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
-              {
-                callback_configure_station(request);
-              });
-    server.begin();
-    server.on("/delete", HTTP_POST, [](AsyncWebServerRequest *request)
-              {
-                callback_delete_wifi_info(request);
-              });
-    server.begin();
+    Serial.println("Error starting mDNS");
   }
   else
   {
-    set_wifi_configuration();
+    Serial.println("Successfully started mDNS: " + ap_name + ".local");
+    MDNS.addService("http", "tcp", 80);
   }
+
   Serial.println("Setup finished!");
   esp_task_wdt_init(WDT_TIMEOUT, true);
   esp_task_wdt_add(NULL);
@@ -301,7 +304,6 @@ void setup()
 void send_data()
 {
   // send the data to registered urls
-
   esp_task_wdt_reset();
 
   // save the sensor values.
@@ -331,12 +333,14 @@ void send_data()
   if (WiFi.status() == WL_CONNECTED)
   {
     HTTPClient http;
-    //bool finished = false;
+    // bool finished = false;
     int i = 0;
 
-    while (true) {
+    while (true)
+    {
       String url = getValue(urls, '\n', i);
-      if (url == "") {
+      if (url == "")
+      {
         break;
       }
       Serial.print("Sending data to: ");
@@ -348,21 +352,27 @@ void send_data()
       Serial.print("HTTP Response code: ");
       Serial.println(http_response);
 
-      i+=1;
+      i += 1;
     }
-
   }
   else
   {
     // connect if not connected
-    initWiFi();
+    if (WiFi.getMode() == WIFI_MODE_STA)
+      xTaskCreate(
+          initWiFi,    /* Task function. */
+          "init wifi", /* name of task. */
+          4096,        /* Stack size of task */
+          NULL,        /* parameter of the task */
+          1,           /* priority of the task */
+          NULL);       /* Task handle to keep track of created task */
   }
   digitalWrite(LED_BUILDTIN, LOW);
 }
 
 void loop()
 {
-  if ((millis() - previousMillis) > delay_time.toInt()*1000)
+  if ((millis() - previousMillis) > delay_time.toInt() * 1000)
   {
     previousMillis = millis();
     send_data();
