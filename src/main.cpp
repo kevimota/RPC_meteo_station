@@ -75,7 +75,7 @@ void load_info()
   delay_time = readFile(LITTLEFS, delay_timePath);
   urls = readFile(LITTLEFS, urlsPath);
 
-  if (delay_time.toInt() == 0)
+  if (delay_time.toInt() <= 0)
     delay_time = "30";
   if (station_name == "")
     station_name = WiFi.macAddress();

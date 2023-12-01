@@ -14,6 +14,8 @@ The env. parameters are sent via HTTP POST request to a server which will archiv
 | GND         | GND         |
 | SDA         | GPIO21      |
 | SCL         | GPIO22      |
+| SDO         | GND         |
+| CS          | 3.3 V       |
 
 ## Flashing the firmware
 
