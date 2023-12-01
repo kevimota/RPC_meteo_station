@@ -6,7 +6,7 @@
 #include <ESPmDNS.h>
 
 #include "FS.h"
-#include "LITTLEFS.h"
+#include "LittleFS.h"
 
 #ifndef CONFIG_LITTLEFS_FOR_IDF_3_2
 #include <time.h>
@@ -59,7 +59,7 @@ String ap_name = "rpc-meteo-" + String(ESP.getEfuseMac(), HEX);
 // Initialize Filesystem
 void initLittleFS()
 {
-  if (!LITTLEFS.begin(FORMAT_LITTLEFS_IF_FAILED))
+  if (!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED))
   {
     Serial.println("LITTLEFS Mount Failed");
     return;
@@ -69,11 +69,11 @@ void initLittleFS()
 
 void load_info()
 {
-  ssid = readFile(LITTLEFS, ssidPath);
-  pass = readFile(LITTLEFS, passPath);
-  station_name = readFile(LITTLEFS, station_namePath);
-  delay_time = readFile(LITTLEFS, delay_timePath);
-  urls = readFile(LITTLEFS, urlsPath);
+  ssid = readFile(LittleFS, ssidPath);
+  pass = readFile(LittleFS, passPath);
+  station_name = readFile(LittleFS, station_namePath);
+  delay_time = readFile(LittleFS, delay_timePath);
+  urls = readFile(LittleFS, urlsPath);
 
   if (delay_time.toInt() <= 0)
     delay_time = "30";
@@ -150,7 +150,7 @@ void callback_configure_wifi(AsyncWebServerRequest *request)
         Serial.print("SSID set to: ");
         Serial.println(ssid);
         // Write file to save value
-        writeFile(LITTLEFS, ssidPath, ssid.c_str());
+        writeFile(LittleFS, ssidPath, ssid.c_str());
       }
       // HTTP POST pass value
       if (p->name() == "pass")
@@ -159,7 +159,7 @@ void callback_configure_wifi(AsyncWebServerRequest *request)
         Serial.print("Password set to: ");
         Serial.println(pass);
         // Write file to save value
-        writeFile(LITTLEFS, passPath, pass.c_str());
+        writeFile(LittleFS, passPath, pass.c_str());
       }
     }
   }
@@ -182,7 +182,7 @@ void callback_configure_station(AsyncWebServerRequest *request)
         Serial.print("Station Name set to: ");
         Serial.println(station_name);
         // Write file to save value
-        writeFile(LITTLEFS, station_namePath, station_name.c_str());
+        writeFile(LittleFS, station_namePath, station_name.c_str());
       }
       if (p->name() == "delay_time")
       {
@@ -190,7 +190,7 @@ void callback_configure_station(AsyncWebServerRequest *request)
         Serial.print("Station Name set to: ");
         Serial.println(delay_time);
         // Write file to save value
-        writeFile(LITTLEFS, delay_timePath, delay_time.c_str());
+        writeFile(LittleFS, delay_timePath, delay_time.c_str());
       }
       if (p->name() == "urls")
       {
@@ -198,18 +198,18 @@ void callback_configure_station(AsyncWebServerRequest *request)
         Serial.print("Station Name set to: ");
         Serial.println(urls);
         // Write file to save value
-        writeFile(LITTLEFS, urlsPath, urls.c_str());
+        writeFile(LittleFS, urlsPath, urls.c_str());
       }
     }
   }
   load_info();
-  request->send(LITTLEFS, "/config.html", "text/html", false, processor);
+  request->send(LittleFS, "/config.html", "text/html", false, processor);
 }
 
 void callback_delete_wifi_info(AsyncWebServerRequest *request)
 {
-  deleteFile(LITTLEFS, ssidPath);
-  deleteFile(LITTLEFS, passPath);
+  deleteFile(LittleFS, ssidPath);
+  deleteFile(LittleFS, passPath);
   request->send(200, "text/plain", "Done. ESP will restart");
   delay(3000);
   ESP.restart();
@@ -272,13 +272,13 @@ void setup()
   ap_configuration();
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-          { request->send(LITTLEFS, "/wifimanager.html", "text/html"); });
-  server.serveStatic("/", LITTLEFS, "/");
+          { request->send(LittleFS, "/wifimanager.html", "text/html"); });
+  server.serveStatic("/", LittleFS, "/");
   server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
             { callback_configure_wifi(request); });
   server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send(LITTLEFS, "/config.html", "text/html", false, processor); });
-  server.serveStatic("/config", LITTLEFS, "/config.html");
+            { request->send(LittleFS, "/config.html", "text/html", false, processor); });
+  server.serveStatic("/config", LittleFS, "/config.html");
   server.on("/config", HTTP_POST, [](AsyncWebServerRequest *request)
             { Serial.println("Config station");
               callback_configure_station(request); });
