@@ -339,20 +339,22 @@ void send_data()
     while (true)
     {
       String url = getValue(urls, '\n', i);
+
       if (url == "")
       {
         break;
       }
       Serial.print("Sending data to: ");
       Serial.println(url);
+
       int http_response;
-      http.begin(url.c_str());
+      http.begin(url);
       http_response = http.POST(json.c_str());
       http.end();
       Serial.print("HTTP Response code: ");
       Serial.println(http_response);
 
-      i += 1;
+      i++;
     }
   }
   else

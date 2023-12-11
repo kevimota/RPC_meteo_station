@@ -18,7 +18,14 @@ String getValue(String data, char separator, int index)
     }
   }
 
-  return found>index ? data.substring(strIndex[0], strIndex[1]) : "";
+  if (found>index) {
+    String answer = data.substring(strIndex[0], strIndex[1]);
+    while (answer.charAt(answer.length() - 1) < 32) {
+      answer = answer.substring(0, answer.length() - 1);
+    }
+    return answer;
+  }
+  else return "";
 }
 
 // Read File from LittleFS
