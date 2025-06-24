@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include "FS.h"
-#include <LITTLEFS.h>
+#include <LittleFS.h>
 
 String getValue(String data, char separator, int index)
 {

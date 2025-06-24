@@ -116,7 +116,7 @@ void initWiFi(void *param)
   vTaskDelete(NULL);
 }
 
-String processor(const String &var)
+String processor_config(const String &var)
 {
   if (var == "STATION_NAME")
     return station_name;
@@ -124,6 +124,11 @@ String processor(const String &var)
     return delay_time;
   if (var == "URLS")
     return urls;
+  return String();
+}
+
+String processor_status(const String &var)
+{
   if (var == "PRES")
     return String(pres);
   if (var == "TEMP")
@@ -132,6 +137,18 @@ String processor(const String &var)
     return String(humi);
   if (var == "MSG")
     return String(msg);
+  if (var == "AP_SSID")
+    return String(WiFi.softAPSSID());
+  if (var == "AP_IP")
+    return String(WiFi.softAPIP());
+  if (var == "STA_STATUS") {
+    if (WiFi.status() == 3) return String("ON");
+    else return String("OFF");
+  }
+  if (var == "STA_SSID")
+    return String(WiFi.SSID());
+  if (var == "STA_IP")
+    return String(WiFi.localIP());
   return String();
 }
 
@@ -140,7 +157,7 @@ void callback_configure_wifi(AsyncWebServerRequest *request)
   int params = request->params();
   for (int i = 0; i < params; i++)
   {
-    AsyncWebParameter *p = request->getParam(i);
+    const AsyncWebParameter *p = request->getParam(i);
     if (p->isPost())
     {
       // HTTP POST ssid value
@@ -173,7 +190,7 @@ void callback_configure_station(AsyncWebServerRequest *request)
   int params = request->params();
   for (int i = 0; i < params; i++)
   {
-    AsyncWebParameter *p = request->getParam(i);
+    const AsyncWebParameter *p = request->getParam(i);
     if (p->isPost())
     {
       if (p->name() == "station_name")
@@ -203,7 +220,7 @@ void callback_configure_station(AsyncWebServerRequest *request)
     }
   }
   load_info();
-  request->send(LittleFS, "/config.html", "text/html", false, processor);
+  request->send(LittleFS, "/config.html", "text/html", false, processor_config);
 }
 
 void callback_delete_wifi_info(AsyncWebServerRequest *request)
@@ -272,16 +289,22 @@ void setup()
   ap_configuration();
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+          { request->send(LittleFS, "/index.html", "text/html", false, processor_status); });
+  server.serveStatic("/", LittleFS, "/index.html");
+
+  server.on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request)
           { request->send(LittleFS, "/wifimanager.html", "text/html"); });
-  server.serveStatic("/", LittleFS, "/");
+  server.serveStatic("/wifi", LittleFS, "/wifimanager.html");
   server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
             { callback_configure_wifi(request); });
+
   server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send(LittleFS, "/config.html", "text/html", false, processor); });
+            { request->send(LittleFS, "/config.html", "text/html", false, processor_config); });
   server.serveStatic("/config", LittleFS, "/config.html");
   server.on("/config", HTTP_POST, [](AsyncWebServerRequest *request)
             { Serial.println("Config station");
               callback_configure_station(request); });
+              
   server.on("/delete", HTTP_POST, [](AsyncWebServerRequest *request)
             { callback_delete_wifi_info(request); });
   server.begin();

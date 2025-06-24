@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>RPC Meteo Station</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <meta http-equiv="refresh" content="15" >
+</head>
+<body>
+  <div class="topnav">
+    <h1>Meteo Station Configuration</h1>
+  </div>
+  <div class="content">
+    <div class="card-grid">
+      <div class="card">
+        <p>Last Measurements:</p>
+        <p>Pressure = %PRES% mbar</p>
+        <p>Temperature = %TEMP% &#176;C</p>
+        <p>RH = %HUMI% &#37;</p>
+        <p>%MSG%</p>
+      </div>
+      <div class="card">
+        <p>Access point: ON</p>
+        <p>SSID: %AP_SSID%</p>
+        <p>IP: %AP_IP%</p>
+      </div>
+      <div class="card">
+        <p>WIFI Connection: %STA_STATUS%</p>
+        <p>SSID: %STA_SSID%</p>
+        <p>IP: %STA_IP%</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
