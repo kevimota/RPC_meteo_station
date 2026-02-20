@@ -21,6 +21,9 @@ Adafruit_BME280 bme;
 
 #include "utils.h"
 
+#define I2C_SDA 25
+#define I2C_SCL 26
+
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 
@@ -258,7 +261,9 @@ void setup()
 
   pinMode(LED_BUILDTIN, OUTPUT);
 
-  bool status = bme.begin(0x76);
+  Wire.begin(I2C_SDA, I2C_SCL);
+
+  bool status = bme.begin(0x76, &Wire);
   if (status)
   {
     Serial.println("BME280 sensor found!");
