@@ -8,7 +8,12 @@
 </head>
 <body>
   <div class="topnav">
-    <h1>Configure Wifi</h1>
+    <h1>Meteo Station Configuration</h1>
+    <div class="nav-buttons">
+      <a href="/" class="nav-button">Home</a>
+      <a href="/config" class="nav-button">Config</a>
+      <a href="/wifi" class="nav-button">WiFi</a>
+    </div>
   </div>
   <div class="content">
     <div class="card-grid">
@@ -16,10 +21,10 @@
         <form action="/" method="POST">
           <p>
             <label for="ssid">SSID</label>
-            <input type="text" id ="ssid" name="ssid"><br>
+            <input type="text" id="ssid" name="ssid"><br>
             <label for="pass">Password</label>
-            <input type="text" id ="pass" name="pass"><br>
-            <input type ="submit" value ="Submit">
+            <input type="password" id="pass" name="pass"><br>
+            <input type ="submit" value="Submit">
           </p>
         </form>
       </div>

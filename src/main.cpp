@@ -21,8 +21,8 @@ Adafruit_BME280 bme;
 
 #include "utils.h"
 
-#define I2C_SDA 25
-#define I2C_SCL 26
+#define I2C_SDA 21
+#define I2C_SCL 22
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -143,7 +143,7 @@ String processor_status(const String &var)
   if (var == "AP_SSID")
     return String(WiFi.softAPSSID());
   if (var == "AP_IP")
-    return String(WiFi.softAPIP());
+    return WiFi.softAPIP().toString();
   if (var == "STA_STATUS") {
     if (WiFi.status() == 3) return String("ON");
     else return String("OFF");
@@ -151,7 +151,7 @@ String processor_status(const String &var)
   if (var == "STA_SSID")
     return String(WiFi.SSID());
   if (var == "STA_IP")
-    return String(WiFi.localIP());
+    return WiFi.localIP().toString();
   return String();
 }
 
@@ -297,6 +297,9 @@ void setup()
           { request->send(LittleFS, "/index.html", "text/html", false, processor_status); });
   server.serveStatic("/", LittleFS, "/index.html");
 
+  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
+          { request->send(LittleFS, "/style.css", "text/css"); });
+
   server.on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request)
           { request->send(LittleFS, "/wifimanager.html", "text/html"); });
   server.serveStatic("/wifi", LittleFS, "/wifimanager.html");
@@ -351,7 +354,9 @@ void send_data()
   }
 
   // format json string
-  String json = "{\"name\": \"" + station_name + "\", \"temp\": " + (String)temp + ", \"pres\": " + (String)pres + ", \"humi\": " + (String)humi + "}";
+  char json[150];
+  
+  snprintf(json, 150, "{\"name\": \"%s\", \"temp\": %.2f, \"pres\": %.2f, \"humi\": %.2f}", station_name.c_str(), temp, pres, humi);
 
   Serial.println(json);
 
@@ -377,7 +382,7 @@ void send_data()
 
       int http_response;
       http.begin(url);
-      http_response = http.POST(json.c_str());
+      http_response = http.POST(json);
       http.end();
       Serial.print("HTTP Response code: ");
       Serial.println(http_response);
