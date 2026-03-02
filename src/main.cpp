@@ -55,7 +55,8 @@ const long interval = 10000; // interval to wait for Wi-Fi connection (milliseco
 String ap_name = "rpc-meteo-" + String(ESP.getEfuseMac(), HEX);
 
 #include <esp_task_wdt.h>
-#define WDT_TIMEOUT 120
+#include <soc/rtc_wdt.h>
+#define WDT_TIMEOUT 60
 
 #define LED_BUILDTIN 2
 
@@ -328,14 +329,18 @@ void setup()
   }
 
   Serial.println("Setup finished!");
-  esp_task_wdt_init(WDT_TIMEOUT, true);
-  esp_task_wdt_add(NULL);
+  rtc_wdt_protect_off();      //Disable RTC WDT write protection
+  //Set stage 0 to trigger a system reset after 1000ms
+  rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_RESET_RTC);
+  rtc_wdt_set_time(RTC_WDT_STAGE0, WDT_TIMEOUT*1000);
+  rtc_wdt_enable();           //Start the RTC WDT timer
+  rtc_wdt_protect_on();       //Enable RTC WDT write protection
 }
 
 void send_data()
 {
   // send the data to registered urls
-  esp_task_wdt_reset();
+  rtc_wdt_feed();
 
   // save the sensor values.
   temp = bme.readTemperature();
