@@ -37,6 +37,8 @@ String station_name;
 String urls;
 String msg;
 
+char json[150];
+
 float temp;
 float pres;
 float humi;
@@ -50,12 +52,13 @@ const char *urlsPath = "/urls.txt";
 
 // Timer variables
 unsigned long previousMillis = 0;
+unsigned long resetMillis = 0;
 const long interval = 10000; // interval to wait for Wi-Fi connection (milliseconds)
 
 String ap_name = "rpc-meteo-" + String(ESP.getEfuseMac(), HEX);
 
 #include <esp_task_wdt.h>
-#define WDT_TIMEOUT 120
+#define WDT_TIMEOUT 60
 
 #define LED_BUILDTIN 2
 
@@ -328,14 +331,18 @@ void setup()
   }
 
   Serial.println("Setup finished!");
-  esp_task_wdt_init(WDT_TIMEOUT, true);
-  esp_task_wdt_add(NULL);
+  esp_task_wdt_config_t twdt_config = {
+    .timeout_ms = WDT_TIMEOUT*1000,
+    .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,    // Bitmask of all cores
+    .trigger_panic = true,
+	};
+	ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&twdt_config));
+	xTaskCreatePinnedToCore(mainTask, "Main Task", 2000, NULL, 5, NULL, ARDUINO_RUNNING_CORE);
 }
 
 void send_data()
 {
   // send the data to registered urls
-  esp_task_wdt_reset();
 
   // save the sensor values.
   temp = bme.readTemperature();
@@ -354,8 +361,6 @@ void send_data()
   }
 
   // format json string
-  char json[150];
-  
   snprintf(json, 150, "{\"name\": \"%s\", \"temp\": %.2f, \"pres\": %.2f, \"humi\": %.2f}", station_name.c_str(), temp, pres, humi);
 
   Serial.println(json);
@@ -407,9 +412,23 @@ void send_data()
 
 void loop()
 {
-  if ((millis() - previousMillis) > delay_time.toInt() * 1000)
-  {
-    previousMillis = millis();
-    send_data();
+  vTaskDelete(NULL);
+}
+
+mainTask(void *params) 
+{
+  ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
+  ESP_ERROR_CHECK(esp_task_wdt_status(NULL));
+
+  for(;;) {
+    if ((millis() - resetMillis) > 5000) {
+      resetMillis = millis();
+      esp_task_wdt_reset();
+    }
+    if ((millis() - previousMillis) > delay_time.toInt() * 1000)
+    {
+      previousMillis = millis();
+      send_data();
+    }
   }
 }
