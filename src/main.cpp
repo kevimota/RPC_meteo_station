@@ -413,23 +413,9 @@ void send_data()
 
 void loop()
 {
-  vTaskDelete(NULL);
-}
-
-mainTask(void *params) 
-{
-  ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
-  ESP_ERROR_CHECK(esp_task_wdt_status(NULL));
-
-  for(;;) {
-    if ((millis() - resetMillis) > 5000) {
-      resetMillis = millis();
-      esp_task_wdt_reset();
-    }
-    if ((millis() - previousMillis) > delay_time.toInt() * 1000)
-    {
-      previousMillis = millis();
-      send_data();
-    }
+  if ((millis() - previousMillis) > delay_time.toInt() * 1000)
+  {
+    previousMillis = millis();
+    send_data();
   }
 }
