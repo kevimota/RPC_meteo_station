@@ -58,6 +58,7 @@ const long interval = 10000; // interval to wait for Wi-Fi connection (milliseco
 String ap_name = "rpc-meteo-" + String(ESP.getEfuseMac(), HEX);
 
 #include <esp_task_wdt.h>
+#include <soc/rtc_wdt.h>
 #define WDT_TIMEOUT 60
 
 #define LED_BUILDTIN 2
@@ -331,18 +332,18 @@ void setup()
   }
 
   Serial.println("Setup finished!");
-  esp_task_wdt_config_t twdt_config = {
-    .timeout_ms = WDT_TIMEOUT*1000,
-    .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,    // Bitmask of all cores
-    .trigger_panic = true,
-	};
-	ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&twdt_config));
-	xTaskCreatePinnedToCore(mainTask, "Main Task", 2000, NULL, 5, NULL, ARDUINO_RUNNING_CORE);
+  rtc_wdt_protect_off();      //Disable RTC WDT write protection
+  //Set stage 0 to trigger a system reset after 1000ms
+  rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_RESET_RTC);
+  rtc_wdt_set_time(RTC_WDT_STAGE0, WDT_TIMEOUT*1000);
+  rtc_wdt_enable();           //Start the RTC WDT timer
+  rtc_wdt_protect_on();       //Enable RTC WDT write protection
 }
 
 void send_data()
 {
   // send the data to registered urls
+  rtc_wdt_feed();
 
   // save the sensor values.
   temp = bme.readTemperature();
