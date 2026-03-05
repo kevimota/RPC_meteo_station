@@ -37,6 +37,8 @@ String station_name;
 String urls;
 String msg;
 
+char json[150];
+
 float temp;
 float pres;
 float humi;
@@ -50,6 +52,7 @@ const char *urlsPath = "/urls.txt";
 
 // Timer variables
 unsigned long previousMillis = 0;
+unsigned long resetMillis = 0;
 const long interval = 10000; // interval to wait for Wi-Fi connection (milliseconds)
 
 String ap_name = "rpc-meteo-" + String(ESP.getEfuseMac(), HEX);
@@ -359,8 +362,6 @@ void send_data()
   }
 
   // format json string
-  char json[150];
-  
   snprintf(json, 150, "{\"name\": \"%s\", \"temp\": %.2f, \"pres\": %.2f, \"humi\": %.2f}", station_name.c_str(), temp, pres, humi);
 
   Serial.println(json);
@@ -412,9 +413,23 @@ void send_data()
 
 void loop()
 {
-  if ((millis() - previousMillis) > delay_time.toInt() * 1000)
-  {
-    previousMillis = millis();
-    send_data();
+  vTaskDelete(NULL);
+}
+
+mainTask(void *params) 
+{
+  ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
+  ESP_ERROR_CHECK(esp_task_wdt_status(NULL));
+
+  for(;;) {
+    if ((millis() - resetMillis) > 5000) {
+      resetMillis = millis();
+      esp_task_wdt_reset();
+    }
+    if ((millis() - previousMillis) > delay_time.toInt() * 1000)
+    {
+      previousMillis = millis();
+      send_data();
+    }
   }
 }
